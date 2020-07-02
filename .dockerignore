@@ -1,0 +1,10 @@
+vendor/
+.travis.yml
+pkg
+Makefile
+LICENSE
+.git
+.github
+.dockerignore
+Dockerfile
+go.sum
