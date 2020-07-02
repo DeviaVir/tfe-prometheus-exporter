@@ -6,10 +6,10 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/DeviaVir/go-tfe"
+	tfe "github.com/DeviaVir/go-tfe"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 )
 
 func getEnv(name string) string {
@@ -39,8 +39,8 @@ func setGauge(name string, help string, callback func() float64) {
 }
 
 func main() {
-	logrus.SetOutput(os.Stdout)
-	logrus.SetLevel(logrus.InfoLevel)
+	log.SetOutput(os.Stdout)
+	log.SetLevel(log.InfoLevel)
 	tfeToken := getEnv("TFE_TOKEN")
 	tfeAddress := getEnv("TFE_ADDRESS")
 	listendAddr := getEnvDefault("HTTP_LISTENADDR", ":9112")
@@ -52,17 +52,17 @@ func main() {
 	ctx := context.Background()
 	client, err := tfe.NewClient(config)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 
 	options := tfe.ListOptions{
 		PageNumber: 0,
-		PageSize:   0,
+		PageSize:   100,
 	}
 	runs, err := client.AdminRuns.List(
 		ctx, tfe.AdminRunsListOptions{ListOptions: options})
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 
 	setGauge("runs_total", "Total number of runs with any status (total)", func() float64 {
@@ -106,6 +106,6 @@ func main() {
 	})
 
 	http.Handle("/metrics", promhttp.Handler())
-	logrus.Info("Now listening on ", listendAddr)
-	logrus.Fatal(http.ListenAndServe(listendAddr, nil))
+	log.Info("Now listening on ", listendAddr)
+	log.Fatal(http.ListenAndServe(listendAddr, nil))
 }

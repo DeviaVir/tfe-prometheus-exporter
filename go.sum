@@ -1,5 +1,3 @@
-github.com/DeviaVir/go-tfe v0.6.1 h1:yrwKg2BEl1aTRUx0R5QsEdnzVwXASaeUsJklA/zgEak=
-github.com/DeviaVir/go-tfe v0.6.1/go.mod h1:L+RNOJ2d4oDLliPfmiqfC1vU9dBi0aGitgYjuVgCs3g=
 github.com/DeviaVir/go-tfe v0.6.2 h1:/K7MWsMguRcW12HbeFGe60qAitZ9kvyLolBn7v0Uz9w=
 github.com/DeviaVir/go-tfe v0.6.2/go.mod h1:L+RNOJ2d4oDLliPfmiqfC1vU9dBi0aGitgYjuVgCs3g=
 github.com/alecthomas/template v0.0.0-20160405071501-a0175ee3bccc/go.mod h1:LOuyumcjzFXgccqObfd/Ljyb9UuFJ6TxHnclSeseNhc=
