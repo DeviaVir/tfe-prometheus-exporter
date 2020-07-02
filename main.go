@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	tfe "github.com/DeviaVir/go-tfe"
 	homedir "github.com/mitchellh/go-homedir"
@@ -56,7 +57,17 @@ func main() {
 	tfeToken := getEnv("TFE_TOKEN")
 	tfeTokenPath := getEnv("TFE_TOKEN_PATH")
 	tfeAddress := getEnv("TFE_ADDRESS")
+	vaultReadyPath := getEnv("VAULT_READY_PATH")
 	listendAddr := getEnvDefault("HTTP_LISTENADDR", ":9112")
+
+	if vaultReadyPath != "" {
+		for {
+			if fileExists(vaultReadyPath) {
+				break
+			}
+			time.Sleep(1 * time.Second)
+		}
+	}
 
 	if tfeTokenPath != "" {
 		if fileExists(tfeTokenPath) {
@@ -134,6 +145,9 @@ func main() {
 	})
 
 	http.Handle("/metrics", promhttp.Handler())
+	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("OK"))
+	})
 	log.Info("Now listening on ", listendAddr)
 	log.Fatal(http.ListenAndServe(listendAddr, nil))
 }
