@@ -2,22 +2,34 @@ package main
 
 import (
 	"context"
-	"fmt"
+	"io/ioutil"
 	"net/http"
 	"os"
+	"strings"
 
 	tfe "github.com/DeviaVir/go-tfe"
+	homedir "github.com/mitchellh/go-homedir"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
 )
+
+// fileExists checks if a file exists and is not a directory before we
+// try using it to prevent further errors.
+func fileExists(filename string) bool {
+	info, err := os.Stat(filename)
+	if os.IsNotExist(err) {
+		return false
+	}
+	return !info.IsDir()
+}
 
 func getEnv(name string) string {
 	envValue, ok := os.LookupEnv(name)
 	if ok {
 		return envValue
 	}
-	panic(fmt.Sprintf("Missing environment variable: %s", name))
+	return ""
 }
 
 func getEnvDefault(name string, defaultVal string) string {
@@ -42,8 +54,24 @@ func main() {
 	log.SetOutput(os.Stdout)
 	log.SetLevel(log.InfoLevel)
 	tfeToken := getEnv("TFE_TOKEN")
+	tfeTokenPath := getEnv("TFE_TOKEN_PATH")
 	tfeAddress := getEnv("TFE_ADDRESS")
 	listendAddr := getEnvDefault("HTTP_LISTENADDR", ":9112")
+
+	if tfeTokenPath != "" {
+		if fileExists(tfeTokenPath) {
+			path, err := homedir.Expand(tfeTokenPath)
+			if err != nil {
+				log.Fatal(err)
+			}
+			content, err := ioutil.ReadFile(path)
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			tfeToken = strings.TrimSpace(string(content))
+		}
+	}
 
 	config := &tfe.Config{
 		Token:   tfeToken,
