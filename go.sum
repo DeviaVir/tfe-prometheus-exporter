@@ -1,5 +1,5 @@
-github.com/DeviaVir/go-tfe v0.6.2 h1:/K7MWsMguRcW12HbeFGe60qAitZ9kvyLolBn7v0Uz9w=
-github.com/DeviaVir/go-tfe v0.6.2/go.mod h1:L+RNOJ2d4oDLliPfmiqfC1vU9dBi0aGitgYjuVgCs3g=
+github.com/DeviaVir/go-tfe v0.6.3 h1:5zzR8xnqsc9SrlBRy/i/if3kEUhpyVPiHzegAR25njE=
+github.com/DeviaVir/go-tfe v0.6.3/go.mod h1:Ft2ixBYlZTgOC3BJajRjueH3XeB9gwRHirh3O5f6Clc=
 github.com/alecthomas/template v0.0.0-20160405071501-a0175ee3bccc/go.mod h1:LOuyumcjzFXgccqObfd/Ljyb9UuFJ6TxHnclSeseNhc=
 github.com/alecthomas/units v0.0.0-20151022065526-2efee857e7cf/go.mod h1:ybxpYRFXyAe+OPACYpWeL0wqObRcbAqCMya13uyzqw0=
 github.com/beorn7/perks v0.0.0-20180321164747-3a771d992973/go.mod h1:Dwedo/Wpr24TaqPxmxbtue+5NUziq4I4S80YR8gNf3Q=

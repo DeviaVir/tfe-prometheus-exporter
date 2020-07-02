@@ -57,7 +57,7 @@ func main() {
 
 	options := tfe.ListOptions{
 		PageNumber: 0,
-		PageSize:   100,
+		PageSize:   0,
 	}
 	runs, err := client.AdminRuns.List(
 		ctx, tfe.AdminRunsListOptions{ListOptions: options})
