@@ -49,7 +49,7 @@ func main() {
 		Token:   tfeToken,
 		Address: tfeAddress,
 	}
-	ctx = context.Background()
+	ctx := context.Background()
 	client, err := tfe.NewClient(config)
 	if err != nil {
 		panic(err)
