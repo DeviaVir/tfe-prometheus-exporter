@@ -126,6 +126,66 @@ func tfeRuns(tfeToken, tfeAddress string) (*tfe.AdminRunsList, error) {
 	return runs, nil
 }
 
+//pre-sort; gets a list of workspaces from TFE, then emits a map of workspace name to runs
+func getRunsByWorkspace(tfeToken, tfeAddress string) (map[string]*tfe.AdminRunsList, error) {
+	config := &tfe.Config{
+		Token:   tfeToken,
+		Address: tfeAddress,
+	}
+	ctx := context.Background()
+	client, err := tfe.NewClient(config)
+	if err != nil {
+		return nil, err
+	}
+
+	options := tfe.ListOptions{
+		PageNumber: 1,
+		PageSize:   1,
+	}
+	workspaces, err := client.Workspaces.List(ctx, tfe.WorkspaceListOptions{ListOptions: options})
+
+	runsPerWorkspace := make(map[string]*tfe.AdminRunsList)
+
+	for workspace := range workspaces {
+		runs, err := client.AdminRuns.List(
+			// this is just a string match; it's probably going to choke with our service manager naming construct?
+			ctx, tfe.AdminRunsListOptions{ListOptions: options, Query: workspace.Name})
+		if err != nil {
+			return nil, err
+		} else {
+			runsPerWorkspace[workspace.Name] = runs
+		}
+	}
+
+	return runsPerWorkspace, nil
+}
+
+func (collector *tfeCollector) CollectPerWorkspace(ch chan<- prometheus.Metric) {
+	log.Println("[INFO]: scraping metrics per workspace")
+
+	runsPerWorkspace, err := getRunsByWorkspace(TfeToken, TfeAddress)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	for workspaceName, runList := range runsPerWorkspace {
+		//Write latest value for each metric in the prometheus metric channel.
+		ch <- prometheus.MustNewConstMetric(collector.runsTotalMetric, prometheus.GaugeValue, float64(runList.StatusCounts.Total), workspaceName)
+		ch <- prometheus.MustNewConstMetric(collector.runsPendingMetric, prometheus.GaugeValue, float64(runList.StatusCounts.Pending), workspaceName)
+		ch <- prometheus.MustNewConstMetric(collector.runsPlanningMetric, prometheus.GaugeValue, float64(runList.StatusCounts.Planning), workspaceName)
+		ch <- prometheus.MustNewConstMetric(collector.runsPlannedMetric, prometheus.GaugeValue, float64(runList.StatusCounts.Planned), workspaceName)
+		ch <- prometheus.MustNewConstMetric(collector.runsConfirmedMetric, prometheus.GaugeValue, float64(runList.StatusCounts.Confirmed), workspaceName)
+		ch <- prometheus.MustNewConstMetric(collector.runsApplyingMetric, prometheus.GaugeValue, float64(runList.StatusCounts.Applying), workspaceName)
+		ch <- prometheus.MustNewConstMetric(collector.runsAppliedMetric, prometheus.GaugeValue, float64(runList.StatusCounts.Applied), workspaceName)
+		ch <- prometheus.MustNewConstMetric(collector.runsDiscardedMetric, prometheus.GaugeValue, float64(runList.StatusCounts.Discarded), workspaceName)
+		ch <- prometheus.MustNewConstMetric(collector.runsErroredMetric, prometheus.GaugeValue, float64(runList.StatusCounts.Errored), workspaceName)
+		ch <- prometheus.MustNewConstMetric(collector.runsCanceledMetric, prometheus.GaugeValue, float64(runList.StatusCounts.Canceled), workspaceName)
+		ch <- prometheus.MustNewConstMetric(collector.runsPolicyCheckingMetric, prometheus.GaugeValue, float64(runList.StatusCounts.PolicyChecking), workspaceName)
+		ch <- prometheus.MustNewConstMetric(collector.runsPolicyOverrideMetric, prometheus.GaugeValue, float64(runList.StatusCounts.PolicyOverride), workspaceName)
+		ch <- prometheus.MustNewConstMetric(collector.runsPolicyCheckedMetric, prometheus.GaugeValue, float64(runList.StatusCounts.PolicyChecked), workspaceName)
+	}
+}
+
 //Collect implements required collect function for all promehteus collectors
 func (collector *tfeCollector) Collect(ch chan<- prometheus.Metric) {
 
@@ -152,3 +212,4 @@ func (collector *tfeCollector) Collect(ch chan<- prometheus.Metric) {
 	ch <- prometheus.MustNewConstMetric(collector.runsPolicyOverrideMetric, prometheus.GaugeValue, float64(runs.StatusCounts.PolicyOverride))
 	ch <- prometheus.MustNewConstMetric(collector.runsPolicyCheckedMetric, prometheus.GaugeValue, float64(runs.StatusCounts.PolicyChecked))
 }
+
