@@ -77,7 +77,7 @@ func main() {
 	log.SetOutput(os.Stdout)
 	log.SetLevel(log.InfoLevel)
 
-	tfeRuns := NewTfeCollector()
+	tfeRuns := NewTfeCollector(TfeToken, TfeAddress)
 	prometheus.MustRegister(tfeRuns)
 
 	http.Handle("/metrics", promhttp.Handler())

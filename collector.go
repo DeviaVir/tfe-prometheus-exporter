@@ -25,59 +25,64 @@ type tfeCollector struct {
 }
 
 // newTFECollector initializes every descriptor and returns a pointer to the collector
-func NewTfeCollector() *tfeCollector {
+func NewTfeCollector(tfeToken, tfeAddress string) *tfeCollector {
+	workspaces, err := getWorkspaceNames(tfeToken, tfeAddress)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	return &tfeCollector{
 		runsTotalMetric: prometheus.NewDesc("runs_total",
 			"Total number of runs with any status (total)",
-			nil, nil,
+			nil, prometheus.Labels{"workspace": workspaces},
 		),
 		runsPendingMetric: prometheus.NewDesc("runs_pending",
 			"Runs currently in the queue (pending)",
-			nil, nil,
+			nil, prometheus.Labels{"workspace": workspaces},
 		),
 		runsPlanningMetric: prometheus.NewDesc("runs_planning",
 			"Runs currently planning (planning)",
-			nil, nil,
+			nil, prometheus.Labels{"workspace": workspaces},
 		),
 		runsPlannedMetric: prometheus.NewDesc("runs_planned",
 			"Runs planned (planned)",
-			nil, nil,
+			nil, prometheus.Labels{"workspace": workspaces},
 		),
 		runsConfirmedMetric: prometheus.NewDesc("runs_confirmed",
 			"Runs confirmed (confirmed)",
-			nil, nil,
+			nil, prometheus.Labels{"workspace": workspaces},
 		),
 		runsApplyingMetric: prometheus.NewDesc("runs_applying",
 			"Runs currently applying (applying)",
-			nil, nil,
+			nil, prometheus.Labels{"workspace": workspaces},
 		),
 		runsAppliedMetric: prometheus.NewDesc("runs_applied",
 			"Runs applied (applied)",
-			nil, nil,
+			nil, prometheus.Labels{"workspace": workspaces},
 		),
 		runsDiscardedMetric: prometheus.NewDesc("runs_discarded",
 			"Runs discarded (discarded)",
-			nil, nil,
+			nil, prometheus.Labels{"workspace": workspaces},
 		),
 		runsErroredMetric: prometheus.NewDesc("runs_errored",
 			"Runs errored (errored)",
-			nil, nil,
+			nil, prometheus.Labels{"workspace": workspaces},
 		),
 		runsCanceledMetric: prometheus.NewDesc("runs_canceled",
 			"Runs canceled (canceled)",
-			nil, nil,
+			nil, prometheus.Labels{"workspace": workspaces},
 		),
 		runsPolicyCheckingMetric: prometheus.NewDesc("runs_policy_checking",
 			"Runs currently checking policy (policy-checking)",
-			nil, nil,
+			nil, prometheus.Labels{"workspace": workspaces},
 		),
 		runsPolicyOverrideMetric: prometheus.NewDesc("runs_policy_override",
 			"Runs with overriden policy (policy-override)",
-			nil, nil,
+			nil, prometheus.Labels{"workspace": workspaces},
 		),
 		runsPolicyCheckedMetric: prometheus.NewDesc("runs_policy_checked",
 			"Runs with checked policy (policy-checked)",
-			nil, nil,
+			nil, prometheus.Labels{"workspace": workspaces},
 		),
 	}
 }
@@ -100,9 +105,9 @@ func (collector *tfeCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- collector.runsPolicyCheckedMetric
 }
 
-// tfeClients returns a List all the runs of the terraform enterprise installation
-func tfeRuns(tfeToken, tfeAddress string) (*tfe.AdminRunsList, error) {
 
+// get a list of workspace names from TFE
+func getWorkspaceNames(tfeToken, tfeAddress string) ([]string, error) {
 	config := &tfe.Config{
 		Token:   tfeToken,
 		Address: tfeAddress,
@@ -117,16 +122,20 @@ func tfeRuns(tfeToken, tfeAddress string) (*tfe.AdminRunsList, error) {
 		PageNumber: 1,
 		PageSize:   1,
 	}
-	runs, err := client.AdminRuns.List(
-		ctx, tfe.AdminRunsListOptions{ListOptions: options})
+
+	workspaces, err := client.Workspaces.List(ctx, tfe.WorkspaceListOptions{ListOptions: options})
 	if err != nil {
 		return nil, err
 	}
+	var workspaceNames []string
 
-	return runs, nil
+	for workspace := range workspaces {
+		workspaceNames = append(workspaceNames, workspace.Name)
+	}
+	return workspaceNames, err
 }
 
-//pre-sort; gets a list of workspaces from TFE, then emits a map of workspace name to runs
+// iterate over the list of workspace names, getting the matching runs for each
 func getRunsByWorkspace(tfeToken, tfeAddress string) (map[string]*tfe.AdminRunsList, error) {
 	config := &tfe.Config{
 		Token:   tfeToken,
@@ -138,11 +147,10 @@ func getRunsByWorkspace(tfeToken, tfeAddress string) (map[string]*tfe.AdminRunsL
 		return nil, err
 	}
 
-	options := tfe.ListOptions{
-		PageNumber: 1,
-		PageSize:   1,
+	workspaces, err := getWorkspaceNames(tfeToken, tfeAddress)
+	if err != nil {
+		return nil, err
 	}
-	workspaces, err := client.Workspaces.List(ctx, tfe.WorkspaceListOptions{ListOptions: options})
 
 	runsPerWorkspace := make(map[string]*tfe.AdminRunsList)
 
@@ -160,7 +168,8 @@ func getRunsByWorkspace(tfeToken, tfeAddress string) (map[string]*tfe.AdminRunsL
 	return runsPerWorkspace, nil
 }
 
-func (collector *tfeCollector) CollectPerWorkspace(ch chan<- prometheus.Metric) {
+//Collect implements required collect function for all prometheus collectors
+func (collector *tfeCollector) Collect(ch chan<- prometheus.Metric) {
 	log.Println("[INFO]: scraping metrics per workspace")
 
 	runsPerWorkspace, err := getRunsByWorkspace(TfeToken, TfeAddress)
@@ -185,31 +194,3 @@ func (collector *tfeCollector) CollectPerWorkspace(ch chan<- prometheus.Metric) 
 		ch <- prometheus.MustNewConstMetric(collector.runsPolicyCheckedMetric, prometheus.GaugeValue, float64(runList.StatusCounts.PolicyChecked), workspaceName)
 	}
 }
-
-//Collect implements required collect function for all promehteus collectors
-func (collector *tfeCollector) Collect(ch chan<- prometheus.Metric) {
-
-	log.Println("[INFO]: scraping metrics")
-
-	// runs retrieves a List all the runs of TFE.
-	runs, err := tfeRuns(TfeToken, TfeAddress)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	//Write latest value for each metric in the prometheus metric channel.
-	ch <- prometheus.MustNewConstMetric(collector.runsTotalMetric, prometheus.GaugeValue, float64(runs.StatusCounts.Total))
-	ch <- prometheus.MustNewConstMetric(collector.runsPendingMetric, prometheus.GaugeValue, float64(runs.StatusCounts.Pending))
-	ch <- prometheus.MustNewConstMetric(collector.runsPlanningMetric, prometheus.GaugeValue, float64(runs.StatusCounts.Planning))
-	ch <- prometheus.MustNewConstMetric(collector.runsPlannedMetric, prometheus.GaugeValue, float64(runs.StatusCounts.Planned))
-	ch <- prometheus.MustNewConstMetric(collector.runsConfirmedMetric, prometheus.GaugeValue, float64(runs.StatusCounts.Confirmed))
-	ch <- prometheus.MustNewConstMetric(collector.runsApplyingMetric, prometheus.GaugeValue, float64(runs.StatusCounts.Applying))
-	ch <- prometheus.MustNewConstMetric(collector.runsAppliedMetric, prometheus.GaugeValue, float64(runs.StatusCounts.Applied))
-	ch <- prometheus.MustNewConstMetric(collector.runsDiscardedMetric, prometheus.GaugeValue, float64(runs.StatusCounts.Discarded))
-	ch <- prometheus.MustNewConstMetric(collector.runsErroredMetric, prometheus.GaugeValue, float64(runs.StatusCounts.Errored))
-	ch <- prometheus.MustNewConstMetric(collector.runsCanceledMetric, prometheus.GaugeValue, float64(runs.StatusCounts.Canceled))
-	ch <- prometheus.MustNewConstMetric(collector.runsPolicyCheckingMetric, prometheus.GaugeValue, float64(runs.StatusCounts.PolicyChecking))
-	ch <- prometheus.MustNewConstMetric(collector.runsPolicyOverrideMetric, prometheus.GaugeValue, float64(runs.StatusCounts.PolicyOverride))
-	ch <- prometheus.MustNewConstMetric(collector.runsPolicyCheckedMetric, prometheus.GaugeValue, float64(runs.StatusCounts.PolicyChecked))
-}
-
