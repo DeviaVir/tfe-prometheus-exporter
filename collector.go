@@ -26,63 +26,68 @@ type tfeCollector struct {
 
 // newTFECollector initializes every descriptor and returns a pointer to the collector
 func NewTfeCollector(tfeToken, tfeAddress string) *tfeCollector {
-	workspaces, err := getWorkspaceNames(tfeToken, tfeAddress)
-	if err != nil {
-		log.Fatal(err)
-	}
+	//workspaces, err := getWorkspaceNames(tfeToken, tfeAddress)
+	//if err != nil {
+	//	log.Fatal(err)
+	//}
+	//var workspaceLabels = make(map[string]string)
+	//for _, workspaceName := range *workspaces {
+	//	workspaceLabels["workspace"] = workspaceName
+	//}
 
 	return &tfeCollector{
 		runsTotalMetric: prometheus.NewDesc("runs_total",
 			"Total number of runs with any status (total)",
-			nil, prometheus.Labels{"workspace": workspaces},
+			[]string{"workspace"}, nil,
+
 		),
 		runsPendingMetric: prometheus.NewDesc("runs_pending",
 			"Runs currently in the queue (pending)",
-			nil, prometheus.Labels{"workspace": workspaces},
+			[]string{"workspace"}, nil,
 		),
 		runsPlanningMetric: prometheus.NewDesc("runs_planning",
 			"Runs currently planning (planning)",
-			nil, prometheus.Labels{"workspace": workspaces},
+			[]string{"workspace"}, nil,
 		),
 		runsPlannedMetric: prometheus.NewDesc("runs_planned",
 			"Runs planned (planned)",
-			nil, prometheus.Labels{"workspace": workspaces},
+			[]string{"workspace"}, nil,
 		),
 		runsConfirmedMetric: prometheus.NewDesc("runs_confirmed",
 			"Runs confirmed (confirmed)",
-			nil, prometheus.Labels{"workspace": workspaces},
+			[]string{"workspace"}, nil,
 		),
 		runsApplyingMetric: prometheus.NewDesc("runs_applying",
 			"Runs currently applying (applying)",
-			nil, prometheus.Labels{"workspace": workspaces},
+			[]string{"workspace"}, nil,
 		),
 		runsAppliedMetric: prometheus.NewDesc("runs_applied",
 			"Runs applied (applied)",
-			nil, prometheus.Labels{"workspace": workspaces},
+			[]string{"workspace"}, nil,
 		),
 		runsDiscardedMetric: prometheus.NewDesc("runs_discarded",
 			"Runs discarded (discarded)",
-			nil, prometheus.Labels{"workspace": workspaces},
+			[]string{"workspace"}, nil,
 		),
 		runsErroredMetric: prometheus.NewDesc("runs_errored",
 			"Runs errored (errored)",
-			nil, prometheus.Labels{"workspace": workspaces},
+			[]string{"workspace"}, nil,
 		),
 		runsCanceledMetric: prometheus.NewDesc("runs_canceled",
 			"Runs canceled (canceled)",
-			nil, prometheus.Labels{"workspace": workspaces},
+			[]string{"workspace"}, nil,
 		),
 		runsPolicyCheckingMetric: prometheus.NewDesc("runs_policy_checking",
 			"Runs currently checking policy (policy-checking)",
-			nil, prometheus.Labels{"workspace": workspaces},
+			[]string{"workspace"}, nil,
 		),
 		runsPolicyOverrideMetric: prometheus.NewDesc("runs_policy_override",
 			"Runs with overriden policy (policy-override)",
-			nil, prometheus.Labels{"workspace": workspaces},
+			[]string{"workspace"}, nil,
 		),
 		runsPolicyCheckedMetric: prometheus.NewDesc("runs_policy_checked",
 			"Runs with checked policy (policy-checked)",
-			nil, prometheus.Labels{"workspace": workspaces},
+			[]string{"workspace"}, nil,
 		),
 	}
 }
@@ -107,7 +112,7 @@ func (collector *tfeCollector) Describe(ch chan<- *prometheus.Desc) {
 
 
 // get a list of workspace names from TFE
-func getWorkspaceNames(tfeToken, tfeAddress string) ([]string, error) {
+func getWorkspaceNames(tfeToken, tfeAddress, orgName string) (*[]string, error) {
 	config := &tfe.Config{
 		Token:   tfeToken,
 		Address: tfeAddress,
@@ -123,20 +128,20 @@ func getWorkspaceNames(tfeToken, tfeAddress string) ([]string, error) {
 		PageSize:   1,
 	}
 
-	workspaces, err := client.Workspaces.List(ctx, tfe.WorkspaceListOptions{ListOptions: options})
+	workspaces, err := client.Workspaces.List(ctx, orgName, tfe.WorkspaceListOptions{ListOptions: options})
 	if err != nil {
 		return nil, err
 	}
 	var workspaceNames []string
 
-	for workspace := range workspaces {
+	for _, workspace := range workspaces.Items {
 		workspaceNames = append(workspaceNames, workspace.Name)
 	}
-	return workspaceNames, err
+	return &workspaceNames, err
 }
 
 // iterate over the list of workspace names, getting the matching runs for each
-func getRunsByWorkspace(tfeToken, tfeAddress string) (map[string]*tfe.AdminRunsList, error) {
+func getRunsByWorkspace(tfeToken, tfeAddress, orgName string) (map[string]*tfe.AdminRunsList, error) {
 	config := &tfe.Config{
 		Token:   tfeToken,
 		Address: tfeAddress,
@@ -147,21 +152,26 @@ func getRunsByWorkspace(tfeToken, tfeAddress string) (map[string]*tfe.AdminRunsL
 		return nil, err
 	}
 
-	workspaces, err := getWorkspaceNames(tfeToken, tfeAddress)
+	options := tfe.ListOptions{
+		PageNumber: 1,
+		PageSize:   1,
+	}
+
+	workspaces, err := getWorkspaceNames(tfeToken, tfeAddress, orgName)
 	if err != nil {
 		return nil, err
 	}
 
 	runsPerWorkspace := make(map[string]*tfe.AdminRunsList)
 
-	for workspace := range workspaces {
+	for _, workspace := range *workspaces {
 		runs, err := client.AdminRuns.List(
 			// this is just a string match; it's probably going to choke with our service manager naming construct?
-			ctx, tfe.AdminRunsListOptions{ListOptions: options, Query: workspace.Name})
+			ctx, tfe.AdminRunsListOptions{ListOptions: options, Query: &workspace})
 		if err != nil {
 			return nil, err
 		} else {
-			runsPerWorkspace[workspace.Name] = runs
+			runsPerWorkspace[workspace] = runs
 		}
 	}
 
@@ -172,7 +182,7 @@ func getRunsByWorkspace(tfeToken, tfeAddress string) (map[string]*tfe.AdminRunsL
 func (collector *tfeCollector) Collect(ch chan<- prometheus.Metric) {
 	log.Println("[INFO]: scraping metrics per workspace")
 
-	runsPerWorkspace, err := getRunsByWorkspace(TfeToken, TfeAddress)
+	runsPerWorkspace, err := getRunsByWorkspace(TfeToken, TfeAddress, TfeOrgName)
 	if err != nil {
 		log.Fatal(err)
 	}

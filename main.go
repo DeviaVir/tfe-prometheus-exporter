@@ -13,7 +13,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-var TfeToken, TfeTokenPath, TfeAddress, VaultReadyPath string
+var TfeToken, TfeTokenPath, TfeAddress, TfeOrgName, VaultReadyPath string
 
 // fileExists checks if a file exists and is not a directory before we
 // try using it to prevent further errors.
@@ -49,6 +49,7 @@ func main() {
 	TfeTokenPath = getEnv("TFE_TOKEN_PATH")
 	TfeAddress = getEnv("TFE_ADDRESS")
 	VaultReadyPath = getEnv("VAULT_READY_PATH")
+	TfeOrgName = getEnv("TFE_ORG_NAME")
 
 	if VaultReadyPath != "" {
 		for {
