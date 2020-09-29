@@ -25,7 +25,7 @@ type tfeCollector struct {
 }
 
 // newTFECollector initializes every descriptor and returns a pointer to the collector
-func NewTfeCollector(tfeToken, tfeAddress string) *tfeCollector {
+func NewTfeCollector() *tfeCollector {
 	//workspaces, err := getWorkspaceNames(tfeToken, tfeAddress)
 	//if err != nil {
 	//	log.Fatal(err)
@@ -112,23 +112,13 @@ func (collector *tfeCollector) Describe(ch chan<- *prometheus.Desc) {
 
 
 // get a list of workspace names from TFE
-func getWorkspaceNames(tfeToken, tfeAddress, orgName string) (*[]string, error) {
-	config := &tfe.Config{
-		Token:   tfeToken,
-		Address: tfeAddress,
-	}
-	ctx := context.Background()
-	client, err := tfe.NewClient(config)
-	if err != nil {
-		return nil, err
-	}
-
+func getWorkspaceNames(client *tfe.Client, ctx *context.Context, orgName string) (*[]string, error) {
 	options := tfe.ListOptions{
 		PageNumber: 1,
 		PageSize:   1,
 	}
 
-	workspaces, err := client.Workspaces.List(ctx, orgName, tfe.WorkspaceListOptions{ListOptions: options})
+	workspaces, err := client.Workspaces.List(*ctx, orgName, tfe.WorkspaceListOptions{ListOptions: options})
 	if err != nil {
 		return nil, err
 	}
@@ -141,23 +131,14 @@ func getWorkspaceNames(tfeToken, tfeAddress, orgName string) (*[]string, error) 
 }
 
 // iterate over the list of workspace names, getting the matching runs for each
-func getRunsByWorkspace(tfeToken, tfeAddress, orgName string) (map[string]*tfe.AdminRunsList, error) {
-	config := &tfe.Config{
-		Token:   tfeToken,
-		Address: tfeAddress,
-	}
-	ctx := context.Background()
-	client, err := tfe.NewClient(config)
-	if err != nil {
-		return nil, err
-	}
+func getRunsByWorkspace(client *tfe.Client, ctx *context.Context, orgName string) (map[string]*tfe.AdminRunsList, error) {
 
 	options := tfe.ListOptions{
 		PageNumber: 1,
 		PageSize:   1,
 	}
 
-	workspaces, err := getWorkspaceNames(tfeToken, tfeAddress, orgName)
+	workspaces, err := getWorkspaceNames(client, ctx, orgName)
 	if err != nil {
 		return nil, err
 	}
@@ -167,7 +148,7 @@ func getRunsByWorkspace(tfeToken, tfeAddress, orgName string) (map[string]*tfe.A
 	for _, workspace := range *workspaces {
 		runs, err := client.AdminRuns.List(
 			// this is just a string match; it's probably going to choke with our service manager naming construct?
-			ctx, tfe.AdminRunsListOptions{ListOptions: options, Query: &workspace})
+			*ctx, tfe.AdminRunsListOptions{ListOptions: options, Query: &workspace})
 		if err != nil {
 			return nil, err
 		} else {
@@ -182,7 +163,17 @@ func getRunsByWorkspace(tfeToken, tfeAddress, orgName string) (map[string]*tfe.A
 func (collector *tfeCollector) Collect(ch chan<- prometheus.Metric) {
 	log.Println("[INFO]: scraping metrics per workspace")
 
-	runsPerWorkspace, err := getRunsByWorkspace(TfeToken, TfeAddress, TfeOrgName)
+	config := &tfe.Config{
+		Token:   TfeToken,
+		Address: TfeAddress,
+	}
+	ctx := context.Background()
+	client, err := tfe.NewClient(config)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	runsPerWorkspace, err := getRunsByWorkspace(client, &ctx, TfeOrgName)
 	if err != nil {
 		log.Fatal(err)
 	}
