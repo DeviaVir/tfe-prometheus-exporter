@@ -26,15 +26,6 @@ type tfeCollector struct {
 
 // newTFECollector initializes every descriptor and returns a pointer to the collector
 func NewTfeCollector() *tfeCollector {
-	//workspaces, err := getWorkspaceNames(tfeToken, tfeAddress)
-	//if err != nil {
-	//	log.Fatal(err)
-	//}
-	//var workspaceLabels = make(map[string]string)
-	//for _, workspaceName := range *workspaces {
-	//	workspaceLabels["workspace"] = workspaceName
-	//}
-
 	return &tfeCollector{
 		runsTotalMetric: prometheus.NewDesc("runs_total",
 			"Total number of runs with any status (total)",
