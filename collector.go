@@ -138,7 +138,6 @@ func getRunsByWorkspace(client *tfe.Client, ctx *context.Context, orgName string
 
 	for _, workspace := range *workspaces {
 		runs, err := client.AdminRuns.List(
-			// this is just a string match; it's probably going to choke with our service manager naming construct?
 			*ctx, tfe.AdminRunsListOptions{ListOptions: options, Query: &workspace})
 		if err != nil {
 			return nil, err
